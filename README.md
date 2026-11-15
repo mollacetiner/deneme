@@ -5,11 +5,42 @@ e-faturaları listeler, **UBL XML** (isteğe bağlı PDF) dosyalarını indirir.
 
 ## Yapı
 
-| Dosya | Açıklama |
+| Proje | Açıklama |
 |---|---|
-| `src/UyumsoftEFatura/Service/IntegrationClient.cs` | WSDL'den `dotnet-svcutil` ile üretilmiş istemci (67 metodun tamamı) |
-| `src/UyumsoftEFatura/UyumsoftClient.cs` | Kimlik doğrulama + sık kullanılan metotlar için sarmalayıcı |
-| `src/UyumsoftEFatura/Program.cs` | Komut satırı uygulaması |
+| `src/UyumsoftEFatura.WinForms` | **Windows Forms uygulaması**: tarih seçip listeleme ve XML/PDF indirme |
+| `src/UyumsoftEFatura` | Komut satırı uygulaması |
+| `src/UyumsoftEFatura.Core` | Ortak kütüphane: WSDL'den üretilmiş istemci (`Service/IntegrationClient.cs`, 67 metot) ve `UyumsoftClient` sarmalayıcısı |
+
+## Windows Forms uygulaması
+
+Gereksinim: Windows + [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) (veya Visual Studio 2022).
+
+Visual Studio'da `UyumsoftEFatura.sln` dosyasını açıp `UyumsoftEFatura.WinForms` projesini
+başlangıç projesi yapın ve F5 ile çalıştırın. Komut satırından:
+
+```bash
+dotnet run --project src/UyumsoftEFatura.WinForms
+```
+
+Tek bir `.exe` almak için:
+
+```bash
+dotnet publish src/UyumsoftEFatura.WinForms -c Release -r win-x64 --self-contained -p:PublishSingleFile=true
+```
+
+Ekran:
+
+- **Bağlantı:** kullanıcı adı, şifre, Test/Canlı ortam, *Bağlantıyı Test Et*
+- **Sorgu:** başlangıç/bitiş tarihi, Gelen/Giden seçimi, *Listele*, anlık filtre (fatura no, unvan, VKN, ETTN)
+- **İndirme:** kayıt klasörü, *PDF de indir*, *Seçilenleri İndir*, *Tümünü İndir* (filtrelenmiş liste), *Durdur*, *Klasörü Aç*
+- **Liste:** fatura no, tarih, karşı taraf, VKN/TCKN, senaryo, fatura tipi, matrah, KDV, ödenecek tutar, döviz, durum, ETTN.
+  Sütun başlığına tıklayınca sıralanır; satıra çift tıklayınca o fatura indirilip klasörde gösterilir;
+  sağ tık menüsünde *ETTN kopyala* vardır. Alt çubukta kayıt sayısı ve döviz bazında toplam görünür.
+
+Faturalar `<klasör>\Gelen` veya `<klasör>\Giden` altına `{FaturaNo}_{ETTN}.xml` adıyla kaydedilir.
+Kullanıcı adı, ortam ve klasör `%APPDATA%\UyumsoftEFatura\ayarlar.json` dosyasında hatırlanır (şifre kaydedilmez).
+
+## Komut satırı uygulaması
 
 Servis adresleri:
 
@@ -17,8 +48,6 @@ Servis adresleri:
 - Canlı: `https://efatura.uyumsoft.com.tr/Services/Integration`
 
 Kimlik doğrulama: HTTPS + WS-Security UsernameToken (`TransportWithMessageCredential`).
-
-## Kullanım
 
 ```bash
 cd src/UyumsoftEFatura
@@ -56,4 +85,4 @@ var status = await client.Service.QueryInboxInvoiceStatusAsync(new[] { "ETTN" })
   `SetTaken = false` gönderir; faturaları "alındı" işaretlemek için `SetInvoicesTakenAsync` kullanın.
 - İstemciyi yeniden üretmek için:
   `dotnet tool install -g dotnet-svcutil` ardından
-  `dotnet-svcutil "https://efatura-test.uyumsoft.com.tr/Services/Integration?wsdl" -n "*,UyumsoftEFatura.Service" -d Service -o IntegrationClient.cs`
+  (`src/UyumsoftEFatura.Core` klasöründe) `dotnet-svcutil "https://efatura-test.uyumsoft.com.tr/Services/Integration?wsdl" -n "*,UyumsoftEFatura.Service" -d Service -o IntegrationClient.cs`

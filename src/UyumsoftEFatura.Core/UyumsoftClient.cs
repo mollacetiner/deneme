@@ -147,6 +147,56 @@ public sealed class UyumsoftClient : IAsyncDisposable
         return count;
     }
 
+    /// <summary>Tarih aralığındaki tüm sayfaları dolaşarak fatura listesini döner.</summary>
+    public async Task<List<InvoiceRow>> GetAllInvoiceRowsAsync(
+        bool inbox, DateTime start, DateTime end, int pageSize = 100,
+        IProgress<string>? progress = null, CancellationToken ct = default)
+    {
+        var rows = new List<InvoiceRow>();
+        int pageIndex = 0, totalPages;
+        do
+        {
+            ct.ThrowIfCancellationRequested();
+            InvoiceListItemBase[] items;
+            if (inbox)
+            {
+                var page = await GetInboxInvoiceListAsync(start, end, pageIndex, pageSize);
+                items = page.Items ?? [];
+                totalPages = page.TotalPages;
+                progress?.Report($"Sayfa {pageIndex + 1}/{Math.Max(totalPages, 1)} alındı ({page.TotalCount} fatura)");
+            }
+            else
+            {
+                var page = await GetOutboxInvoiceListAsync(start, end, pageIndex, pageSize);
+                items = page.Items ?? [];
+                totalPages = page.TotalPages;
+                progress?.Report($"Sayfa {pageIndex + 1}/{Math.Max(totalPages, 1)} alındı ({page.TotalCount} fatura)");
+            }
+            rows.AddRange(items.Select(InvoiceRow.From));
+            pageIndex++;
+            if (items.Length == 0) break;
+        } while (pageIndex < totalPages);
+        return rows;
+    }
+
+    /// <summary>Tek faturanın XML'ini (ve isteğe bağlı PDF'ini) klasöre kaydeder, XML dosya yolunu döner.</summary>
+    public async Task<string> DownloadInvoiceAsync(
+        bool inbox, string ettn, string? invoiceNo, string outputDir, bool includePdf = false)
+    {
+        Directory.CreateDirectory(outputDir);
+        var xml = inbox ? await GetInboxInvoiceXmlAsync(ettn) : await GetOutboxInvoiceXmlAsync(ettn);
+        invoiceNo ??= TryGetInvoiceNumber(xml) ?? "fatura";
+        var baseName = SafeFileName($"{invoiceNo}_{ettn}");
+        var xmlPath = Path.Combine(outputDir, baseName + ".xml");
+        await File.WriteAllBytesAsync(xmlPath, xml);
+        if (includePdf)
+        {
+            var pdf = inbox ? await GetInboxInvoicePdfAsync(ettn) : await GetOutboxInvoicePdfAsync(ettn);
+            await File.WriteAllBytesAsync(Path.Combine(outputDir, baseName + ".pdf"), pdf);
+        }
+        return xmlPath;
+    }
+
     // ---------- İç yardımcılar ----------
 
     private static T Check<T>(T response) where T : Response

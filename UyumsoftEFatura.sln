@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{98BDBB11-2609-4519-AA1A-F3069D356E38}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UyumsoftEFatura.Core", "src\UyumsoftEFatura.Core\UyumsoftEFatura.Core.csproj", "{A36CA6AB-D0E9-428F-BE66-2BB5BE0602EA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UyumsoftEFatura", "src\UyumsoftEFatura\UyumsoftEFatura.csproj", "{0EB183E9-9E7F-469F-BEE5-98295CF84ABB}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A36CA6AB-D0E9-428F-BE66-2BB5BE0602EA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A36CA6AB-D0E9-428F-BE66-2BB5BE0602EA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A36CA6AB-D0E9-428F-BE66-2BB5BE0602EA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A36CA6AB-D0E9-428F-BE66-2BB5BE0602EA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0EB183E9-9E7F-469F-BEE5-98295CF84ABB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0EB183E9-9E7F-469F-BEE5-98295CF84ABB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0EB183E9-9E7F-469F-BEE5-98295CF84ABB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0EB183E9-9E7F-469F-BEE5-98295CF84ABB}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{A36CA6AB-D0E9-428F-BE66-2BB5BE0602EA} = {98BDBB11-2609-4519-AA1A-F3069D356E38}
+		{0EB183E9-9E7F-469F-BEE5-98295CF84ABB} = {98BDBB11-2609-4519-AA1A-F3069D356E38}
+	EndGlobalSection
+EndGlobal
