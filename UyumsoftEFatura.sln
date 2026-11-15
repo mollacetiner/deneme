@@ -3,6 +3,8 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UyumsoftEFatura.WinForms", "src\UyumsoftEFatura.WinForms\UyumsoftEFatura.WinForms.csproj", "{5C1F3E2A-7B4D-4E8A-9C61-2D3B4A5E6F70}"
+EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{98BDBB11-2609-4519-AA1A-F3069D356E38}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UyumsoftEFatura.Core", "src\UyumsoftEFatura.Core\UyumsoftEFatura.Core.csproj", "{A36CA6AB-D0E9-428F-BE66-2BB5BE0602EA}"
@@ -18,6 +20,10 @@ Global
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{5C1F3E2A-7B4D-4E8A-9C61-2D3B4A5E6F70}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5C1F3E2A-7B4D-4E8A-9C61-2D3B4A5E6F70}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5C1F3E2A-7B4D-4E8A-9C61-2D3B4A5E6F70}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5C1F3E2A-7B4D-4E8A-9C61-2D3B4A5E6F70}.Release|Any CPU.Build.0 = Release|Any CPU
 		{A36CA6AB-D0E9-428F-BE66-2BB5BE0602EA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{A36CA6AB-D0E9-428F-BE66-2BB5BE0602EA}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A36CA6AB-D0E9-428F-BE66-2BB5BE0602EA}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -28,6 +34,7 @@ Global
 		{0EB183E9-9E7F-469F-BEE5-98295CF84ABB}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
+		{5C1F3E2A-7B4D-4E8A-9C61-2D3B4A5E6F70} = {98BDBB11-2609-4519-AA1A-F3069D356E38}
 		{A36CA6AB-D0E9-428F-BE66-2BB5BE0602EA} = {98BDBB11-2609-4519-AA1A-F3069D356E38}
 		{0EB183E9-9E7F-469F-BEE5-98295CF84ABB} = {98BDBB11-2609-4519-AA1A-F3069D356E38}
 	EndGlobalSection
