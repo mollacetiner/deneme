@@ -179,11 +179,23 @@ public sealed class UyumsoftClient : IAsyncDisposable
         return rows;
     }
 
-    /// <summary>Tek faturanın XML'ini (ve isteğe bağlı PDF'ini) klasöre kaydeder, XML dosya yolunu döner.</summary>
-    public async Task<string> DownloadInvoiceAsync(
-        bool inbox, string ettn, string? invoiceNo, string outputDir, bool includePdf = false)
+    /// <summary>
+    /// Tek faturanın XML'ini (ve isteğe bağlı PDF'ini) klasöre kaydeder.
+    /// <paramref name="skipExisting"/> true ise dosya zaten varsa servise hiç gidilmez.
+    /// </summary>
+    public async Task<DownloadResult> DownloadInvoiceAsync(
+        bool inbox, string ettn, string? invoiceNo, string outputDir,
+        bool includePdf = false, bool skipExisting = false)
     {
         Directory.CreateDirectory(outputDir);
+
+        if (skipExisting && !string.IsNullOrEmpty(invoiceNo))
+        {
+            var existing = Path.Combine(outputDir, SafeFileName($"{invoiceNo}_{ettn}"));
+            if (File.Exists(existing + ".xml") && (!includePdf || File.Exists(existing + ".pdf")))
+                return new DownloadResult(existing + ".xml", Skipped: true);
+        }
+
         var xml = inbox ? await GetInboxInvoiceXmlAsync(ettn) : await GetOutboxInvoiceXmlAsync(ettn);
         invoiceNo ??= TryGetInvoiceNumber(xml) ?? "fatura";
         var baseName = SafeFileName($"{invoiceNo}_{ettn}");
@@ -194,7 +206,32 @@ public sealed class UyumsoftClient : IAsyncDisposable
             var pdf = inbox ? await GetInboxInvoicePdfAsync(ettn) : await GetOutboxInvoicePdfAsync(ettn);
             await File.WriteAllBytesAsync(Path.Combine(outputDir, baseName + ".pdf"), pdf);
         }
-        return xmlPath;
+        return new DownloadResult(xmlPath, Skipped: false);
+    }
+
+    /// <summary>Servis/iletişim hatalarını kullanıcıya gösterilecek Türkçe bir mesaja çevirir.</summary>
+    public static string DescribeError(Exception ex)
+    {
+        switch (ex)
+        {
+            case UyumsoftException:
+                return ex.Message;
+            case System.ServiceModel.Security.MessageSecurityException mse:
+                // Hatalı kullanıcı adı/şifre bu şekilde gelir; asıl mesaj içteki FaultException'dadır
+                var inner = mse.InnerException?.Message ?? mse.Message;
+                return inner.Contains("yetkiniz yok", StringComparison.OrdinalIgnoreCase)
+                    ? "Kullanıcı adı veya şifre hatalı ya da bu kullanıcının web servis yetkisi yok.\n\nServis yanıtı: " + inner
+                    : inner;
+            case FaultException:
+                return ex.Message;
+            case EndpointNotFoundException:
+            case CommunicationException when ex.InnerException is System.Net.Http.HttpRequestException:
+                return "Uyumsoft sunucusuna bağlanılamadı. İnternet bağlantınızı ve güvenlik duvarını kontrol edin.\n\n" + ex.GetBaseException().Message;
+            case TimeoutException:
+                return "Sunucu zamanında yanıt vermedi. Daha kısa bir tarih aralığıyla tekrar deneyin.";
+            default:
+                return ex.GetBaseException().Message;
+        }
     }
 
     // ---------- İç yardımcılar ----------
@@ -248,3 +285,5 @@ public sealed class UyumsoftClient : IAsyncDisposable
 }
 
 public sealed class UyumsoftException(string message) : Exception(message);
+
+public sealed record DownloadResult(string XmlPath, bool Skipped);

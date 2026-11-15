@@ -1,5 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 
 namespace UyumsoftEFatura.WinForms;
@@ -13,6 +15,7 @@ public sealed class MainForm : Form
     private readonly TextBox _txtUser = new() { Width = 140 };
     private readonly TextBox _txtPass = new() { Width = 140, UseSystemPasswordChar = true };
     private readonly ComboBox _cmbEnv = new() { Width = 90, DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly CheckBox _chkRemember = new() { Text = "Şifreyi hatırla", AutoSize = true, Margin = new Padding(8, 6, 3, 3) };
     private readonly Button _btnTest = new() { Text = "Bağlantıyı Test Et", AutoSize = true };
 
     // --- Sorgu ---
@@ -26,7 +29,8 @@ public sealed class MainForm : Form
     // --- İndirme ---
     private readonly TextBox _txtFolder = new() { Width = 280 };
     private readonly Button _btnBrowse = new() { Text = "...", Width = 30 };
-    private readonly CheckBox _chkPdf = new() { Text = "PDF de indir", AutoSize = true };
+    private readonly CheckBox _chkPdf = new() { Text = "PDF de indir", AutoSize = true, Margin = new Padding(6, 6, 3, 3) };
+    private readonly CheckBox _chkSkip = new() { Text = "İndirilmişleri atla", AutoSize = true, Checked = true, Margin = new Padding(6, 6, 3, 3) };
     private readonly Button _btnDownloadSelected = new() { Text = "Seçilenleri İndir", AutoSize = true };
     private readonly Button _btnDownloadAll = new() { Text = "Tümünü İndir", AutoSize = true };
     private readonly Button _btnOpenFolder = new() { Text = "Klasörü Aç", AutoSize = true };
@@ -48,11 +52,14 @@ public sealed class MainForm : Form
     };
     private readonly ToolStripStatusLabel _lblStatus = new() { Spring = true, TextAlign = ContentAlignment.MiddleLeft, Text = "Hazır" };
     private readonly ToolStripStatusLabel _lblTotal = new() { Text = "" };
+    private readonly ToolStripStatusLabel _lblEnv = new() { Font = new Font("Segoe UI", 9F, FontStyle.Bold), ForeColor = Color.White, Padding = new Padding(6, 0, 6, 0) };
     private readonly ToolStripProgressBar _progress = new() { Width = 200, Visible = false };
 
     private List<InvoiceRow> _allRows = [];
     private List<InvoiceRow> _viewRows = [];
     private bool _lastListWasInbox = true;
+    private AppSettings _settings = new();
+    private int _currentEnv; // 0 = Test, 1 = Canlı
     private string? _sortProperty;
     private bool _sortAscending = true;
     private CancellationTokenSource? _cts;
@@ -75,9 +82,12 @@ public sealed class MainForm : Form
         _dtTo.Value = today;
 
         BuildLayout();
-        WireEvents();
         LoadSettings();
+        WireEvents();
+        UpdateEnvironmentIndicator();
     }
+
+    private bool IsProd => _currentEnv == 1;
 
     // =====================================================================
     // Arayüz
@@ -91,12 +101,12 @@ public sealed class MainForm : Form
         var groups = new[]
         {
             Group("Bağlantı",
-                Lbl("Kullanıcı:"), _txtUser, Lbl("Şifre:"), _txtPass, Lbl("Ortam:"), _cmbEnv, _btnTest),
+                Lbl("Ortam:"), _cmbEnv, Lbl("Kullanıcı:"), _txtUser, Lbl("Şifre:"), _txtPass, _chkRemember, _btnTest),
             Group("Sorgu",
                 Lbl("Başlangıç:"), _dtFrom, Lbl("Bitiş:"), _dtTo, boxPanel, _btnList,
                 Lbl("   Filtre:"), _txtFilter),
             Group("İndirme",
-                Lbl("Klasör:"), _txtFolder, _btnBrowse, _chkPdf,
+                Lbl("Klasör:"), _txtFolder, _btnBrowse, _chkPdf, _chkSkip,
                 _btnDownloadSelected, _btnDownloadAll, _btnCancel, _btnOpenFolder),
         };
 
@@ -110,7 +120,7 @@ public sealed class MainForm : Form
         foreach (var g in groups.Reverse()) top.Controls.Add(g);
 
         var status = new StatusStrip();
-        status.Items.AddRange(new ToolStripItem[] { _lblStatus, _lblTotal, _progress });
+        status.Items.AddRange(new ToolStripItem[] { _lblEnv, _lblStatus, _lblTotal, _progress });
 
         var gridHost = new Panel { Dock = DockStyle.Fill, Padding = new Padding(8, 0, 8, 4) };
         gridHost.Controls.Add(_grid);
@@ -167,6 +177,7 @@ public sealed class MainForm : Form
                 await DownloadAsync([_viewRows[e.RowIndex]], openAfter: true);
         };
         _grid.DataBindingComplete += (_, _) => FormatGrid();
+        _cmbEnv.SelectedIndexChanged += (_, _) => SwitchEnvironment();
         FormClosing += (_, _) => SaveSettings();
     }
 
@@ -198,7 +209,7 @@ public sealed class MainForm : Form
     {
         if (string.IsNullOrWhiteSpace(_txtUser.Text) || string.IsNullOrEmpty(_txtPass.Text))
             throw new UyumsoftException("Kullanıcı adı ve şifre girin.");
-        return new UyumsoftClient(_txtUser.Text.Trim(), _txtPass.Text, production: _cmbEnv.SelectedIndex == 1);
+        return new UyumsoftClient(_txtUser.Text.Trim(), _txtPass.Text, production: IsProd);
     }
 
     private async Task TestConnectionAsync()
@@ -254,14 +265,18 @@ public sealed class MainForm : Form
 
         bool inbox = _lastListWasInbox;
         bool pdf = _chkPdf.Checked;
-        var dir = Path.Combine(_txtFolder.Text, inbox ? "Gelen" : "Giden");
+        bool skip = _chkSkip.Checked;
+        // Test faturaları gerçek faturalarla karışmasın: test ortamı ayrı alt klasöre iner
+        var dir = IsProd
+            ? Path.Combine(_txtFolder.Text, inbox ? "Gelen" : "Giden")
+            : Path.Combine(_txtFolder.Text, "TEST", inbox ? "Gelen" : "Giden");
 
         await RunBusyAsync($"{rows.Count} fatura indiriliyor...", async ct =>
         {
             await using var client = CreateClient();
             _progress.Maximum = rows.Count;
             _progress.Value = 0;
-            int ok = 0;
+            int ok = 0, skipped = 0;
             var errors = new List<string>();
             string? lastPath = null;
 
@@ -270,18 +285,19 @@ public sealed class MainForm : Form
                 if (ct.IsCancellationRequested) break;
                 try
                 {
-                    lastPath = await client.DownloadInvoiceAsync(inbox, row.Ettn, row.InvoiceNo, dir, pdf);
-                    ok++;
+                    var result = await client.DownloadInvoiceAsync(inbox, row.Ettn, row.InvoiceNo, dir, pdf, skip);
+                    lastPath = result.XmlPath;
+                    if (result.Skipped) skipped++; else ok++;
                 }
                 catch (Exception ex)
                 {
-                    errors.Add($"{row.InvoiceNo}: {ex.Message}");
+                    errors.Add($"{row.InvoiceNo}: {UyumsoftClient.DescribeError(ex)}");
                 }
                 _progress.Value++;
                 SetStatus($"İndiriliyor {_progress.Value}/{rows.Count} — {row.InvoiceNo}");
             }
 
-            var msg = $"{ok} fatura indirildi → {dir}";
+            var msg = $"{ok} fatura indirildi" + (skipped > 0 ? $", {skipped} tanesi zaten vardı (atlandı)" : "") + $" → {dir}";
             if (ct.IsCancellationRequested) msg += " (kullanıcı tarafından durduruldu)";
             SetStatus(msg);
 
@@ -311,9 +327,7 @@ public sealed class MainForm : Form
         }
         catch (Exception ex)
         {
-            var text = ex is UyumsoftException or System.ServiceModel.FaultException
-                ? ex.Message
-                : ex.GetBaseException().Message;
+            var text = UyumsoftClient.DescribeError(ex);
             SetStatus("Hata: " + text);
             MessageBox.Show(this, text, "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
@@ -410,32 +424,120 @@ public sealed class MainForm : Form
             Process.Start(new ProcessStartInfo(_txtFolder.Text) { UseShellExecute = true });
     }
 
-    private sealed record Settings(string? User, int Env, string? Folder, bool Pdf);
+    // ---- Ortam değişimi ----
+
+    private void SwitchEnvironment()
+    {
+        if (_cmbEnv.SelectedIndex == _currentEnv) return;
+        StoreCredentials(_currentEnv);           // eski ortamın bilgilerini sakla
+        _currentEnv = _cmbEnv.SelectedIndex;
+        RestoreCredentials(_currentEnv);         // yeni ortamın bilgilerini getir
+
+        // Liste diğer ortama ait olduğu için temizlenir
+        _allRows = [];
+        ApplyView();
+        UpdateEnvironmentIndicator();
+        SetStatus(IsProd ? "CANLI ortama geçildi. İşlemler gerçek faturalar üzerinde yapılır." : "Test ortamına geçildi.");
+    }
+
+    private void UpdateEnvironmentIndicator()
+    {
+        Text = IsProd ? "Uyumsoft e-Fatura İndirici — CANLI ORTAM" : "Uyumsoft e-Fatura İndirici — Test Ortamı";
+        _lblEnv.Text = IsProd ? "CANLI" : "TEST";
+        _lblEnv.BackColor = IsProd ? Color.Firebrick : Color.SteelBlue;
+        _cmbEnv.BackColor = IsProd ? Color.MistyRose : SystemColors.Window;
+    }
+
+    // ---- Ayarlar ----
+
+    private sealed class EnvCredentials
+    {
+        public string? User { get; set; }
+        public string? ProtectedPassword { get; set; } // Windows DPAPI ile şifrelenmiş (yalnızca bu Windows kullanıcısı çözebilir)
+    }
+
+    private sealed class AppSettings
+    {
+        public int Env { get; set; }
+        public EnvCredentials Test { get; set; } = new();
+        public EnvCredentials Prod { get; set; } = new();
+        public bool RememberPassword { get; set; }
+        public string? Folder { get; set; }
+        public bool Pdf { get; set; }
+        public bool SkipExisting { get; set; } = true;
+    }
+
+    private EnvCredentials Creds(int env) => env == 1 ? _settings.Prod : _settings.Test;
+
+    private void StoreCredentials(int env)
+    {
+        var c = Creds(env);
+        c.User = _txtUser.Text.Trim();
+        c.ProtectedPassword = _chkRemember.Checked && _txtPass.Text.Length > 0 ? Protect(_txtPass.Text) : null;
+        _sessionPasswords[env] = _txtPass.Text; // program açıkken ortamlar arası geçişte şifre kaybolmasın
+    }
+
+    private void RestoreCredentials(int env)
+    {
+        var c = Creds(env);
+        _txtUser.Text = c.User ?? "";
+        _txtPass.Text = _sessionPasswords.TryGetValue(env, out var p) && p.Length > 0
+            ? p
+            : Unprotect(c.ProtectedPassword) ?? "";
+    }
+
+    private readonly Dictionary<int, string> _sessionPasswords = new();
+
+    private static string Protect(string plain) =>
+        Convert.ToBase64String(ProtectedData.Protect(Encoding.UTF8.GetBytes(plain), null, DataProtectionScope.CurrentUser));
+
+    private static string? Unprotect(string? cipher)
+    {
+        if (string.IsNullOrEmpty(cipher)) return null;
+        try
+        {
+            return Encoding.UTF8.GetString(ProtectedData.Unprotect(Convert.FromBase64String(cipher), null, DataProtectionScope.CurrentUser));
+        }
+        catch { return null; }
+    }
 
     private void LoadSettings()
     {
         _txtFolder.Text = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "e-Faturalar");
         try
         {
-            if (!File.Exists(SettingsPath)) return;
-            var s = JsonSerializer.Deserialize<Settings>(File.ReadAllText(SettingsPath));
-            if (s is null) return;
-            _txtUser.Text = s.User ?? "";
-            _cmbEnv.SelectedIndex = s.Env is 0 or 1 ? s.Env : 0;
-            if (!string.IsNullOrWhiteSpace(s.Folder)) _txtFolder.Text = s.Folder;
-            _chkPdf.Checked = s.Pdf;
+            if (File.Exists(SettingsPath))
+                _settings = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(SettingsPath)) ?? new();
         }
-        catch { /* bozuk ayar dosyası yok sayılır */ }
+        catch { _settings = new(); /* bozuk ayar dosyası yok sayılır */ }
+
+        _currentEnv = _settings.Env is 0 or 1 ? _settings.Env : 0;
+        _cmbEnv.SelectedIndex = _currentEnv;
+        _chkRemember.Checked = _settings.RememberPassword;
+        if (!string.IsNullOrWhiteSpace(_settings.Folder)) _txtFolder.Text = _settings.Folder;
+        _chkPdf.Checked = _settings.Pdf;
+        _chkSkip.Checked = _settings.SkipExisting;
+        RestoreCredentials(_currentEnv);
     }
 
     private void SaveSettings()
     {
-        // Şifre güvenlik nedeniyle kaydedilmez.
         try
         {
+            StoreCredentials(_currentEnv);
+            if (!_chkRemember.Checked)
+            {
+                _settings.Test.ProtectedPassword = null;
+                _settings.Prod.ProtectedPassword = null;
+            }
+            _settings.Env = _currentEnv;
+            _settings.RememberPassword = _chkRemember.Checked;
+            _settings.Folder = _txtFolder.Text;
+            _settings.Pdf = _chkPdf.Checked;
+            _settings.SkipExisting = _chkSkip.Checked;
+
             Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
-            File.WriteAllText(SettingsPath, JsonSerializer.Serialize(
-                new Settings(_txtUser.Text, _cmbEnv.SelectedIndex, _txtFolder.Text, _chkPdf.Checked)));
+            File.WriteAllText(SettingsPath, JsonSerializer.Serialize(_settings, new JsonSerializerOptions { WriteIndented = true }));
         }
         catch { }
     }

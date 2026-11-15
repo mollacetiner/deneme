@@ -23,15 +23,26 @@ var positional = argList.Skip(1).TakeWhile(a => !a.StartsWith("--")).ToList();
 var box = positional.FirstOrDefault() ?? "inbox";
 bool inbox = !box.Equals("outbox", StringComparison.OrdinalIgnoreCase);
 
-var user = Environment.GetEnvironmentVariable("UYUMSOFT_USER") ?? "Uyumsoft"; // test ortamı demo kullanıcısı
-var pass = Environment.GetEnvironmentVariable("UYUMSOFT_PASS") ?? "Uyumsoft";
 bool prod = Flag("--prod");
+var user = Environment.GetEnvironmentVariable("UYUMSOFT_USER");
+var pass = Environment.GetEnvironmentVariable("UYUMSOFT_PASS");
+if (string.IsNullOrEmpty(user) || string.IsNullOrEmpty(pass))
+{
+    if (prod)
+    {
+        Console.Error.WriteLine("Canlı ortam için UYUMSOFT_USER ve UYUMSOFT_PASS ortam değişkenlerini ayarlayın.");
+        return 2;
+    }
+    (user, pass) = ("Uyumsoft", "Uyumsoft"); // test ortamı demo kullanıcısı
+}
 
 var today = DateTime.Today;
 DateTime from = DateTime.ParseExact(Opt("--from", today.AddDays(-30).ToString("yyyy-MM-dd")), "yyyy-MM-dd", CultureInfo.InvariantCulture);
 DateTime to = DateTime.ParseExact(Opt("--to", today.ToString("yyyy-MM-dd")), "yyyy-MM-dd", CultureInfo.InvariantCulture)
     .AddDays(1).AddTicks(-1); // bitiş gününü dahil et
-var outDir = Opt("--out", Path.Combine(Environment.CurrentDirectory, "faturalar", inbox ? "gelen" : "giden"));
+var outDir = Opt("--out", prod
+    ? Path.Combine(Environment.CurrentDirectory, "faturalar", inbox ? "gelen" : "giden")
+    : Path.Combine(Environment.CurrentDirectory, "faturalar", "test", inbox ? "gelen" : "giden"));
 
 await using var client = new UyumsoftClient(user, pass, prod);
 Console.WriteLine($"Ortam: {(prod ? "CANLI" : "TEST")}  Kullanıcı: {user}");
@@ -88,14 +99,9 @@ try
             break;
     }
 }
-catch (UyumsoftException ex)
+catch (Exception ex)
 {
-    Console.Error.WriteLine($"Servis hatası: {ex.Message}");
-    return 1;
-}
-catch (System.ServiceModel.FaultException ex)
-{
-    Console.Error.WriteLine($"SOAP hatası: {ex.Message}");
+    Console.Error.WriteLine($"Hata: {UyumsoftClient.DescribeError(ex)}");
     return 1;
 }
 return 0;

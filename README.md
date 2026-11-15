@@ -37,8 +37,21 @@ Ekran:
   Sütun başlığına tıklayınca sıralanır; satıra çift tıklayınca o fatura indirilip klasörde gösterilir;
   sağ tık menüsünde *ETTN kopyala* vardır. Alt çubukta kayıt sayısı ve döviz bazında toplam görünür.
 
-Faturalar `<klasör>\Gelen` veya `<klasör>\Giden` altına `{FaturaNo}_{ETTN}.xml` adıyla kaydedilir.
-Kullanıcı adı, ortam ve klasör `%APPDATA%\UyumsoftEFatura\ayarlar.json` dosyasında hatırlanır (şifre kaydedilmez).
+### Canlı (gerçek) ortam
+
+1. **Ortam** kutusundan **Canlı** seçin. Başlık çubuğunda "CANLI ORTAM", alt çubukta kırmızı **CANLI** etiketi görünür.
+2. Uyumsoft'un size verdiği **web servis kullanıcı adı ve şifresini** girin
+   (portal giriş bilgisinden farklı olabilir; yoksa Uyumsoft destekten "entegrasyon / web servis kullanıcısı" isteyin).
+3. *Bağlantıyı Test Et* ile firma unvanınızın geldiğini kontrol edin.
+
+- Test ve canlı için kullanıcı adı/şifre **ayrı ayrı** hatırlanır; ortam değişince liste temizlenir.
+- *Şifreyi hatırla* işaretlenirse şifre Windows DPAPI ile şifrelenerek saklanır (yalnızca aynı Windows kullanıcısı çözebilir).
+- Canlı faturalar `<klasör>\Gelen` / `<klasör>\Giden`, test faturaları `<klasör>\TEST\Gelen` / `<klasör>\TEST\Giden` altına
+  `{FaturaNo}_{ETTN}.xml` adıyla kaydedilir; karışmaz.
+- *İndirilmişleri atla* açıkken klasörde zaten olan faturalar için servise gidilmez (günlük tekrar indirmelerde hızlıdır).
+- Faturalar Uyumsoft'ta **"alındı" olarak işaretlenmez**; ERP entegrasyonunuzun akışı bozulmaz.
+
+Ayarlar `%APPDATA%\UyumsoftEFatura\ayarlar.json` dosyasındadır.
 
 ## Komut satırı uygulaması
 
@@ -60,7 +73,7 @@ dotnet run -- download outbox --from 2026-11-01 --to 2026-11-15 --pdf
 dotnet run -- get inbox <ETTN>
 ```
 
-Canlı ortam için `--prod` ekleyin. Dosya adları `{FaturaNo}_{ETTN}.xml` biçimindedir.
+Canlı ortam için `--prod` ekleyin (bu durumda `UYUMSOFT_USER`/`UYUMSOFT_PASS` zorunludur; test dosyaları `faturalar/test/...` altına iner). Dosya adları `{FaturaNo}_{ETTN}.xml` biçimindedir.
 
 ## Kodda kullanım
 
